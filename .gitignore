@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+.ipynb_checkpoints/
+**/data/processed/
+**/data/interim/
+*.log
+.DS_Store
+.env*
+.claude/settings.local.json
