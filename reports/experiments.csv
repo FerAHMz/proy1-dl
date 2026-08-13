@@ -1,0 +1,17 @@
+iteracion,cambio,cv_rmse_mean,cv_rmse_std,train_rmse_mean,gap_val_menos_train,oof_rmse,mean_best_epoch,segundos,hidden,activation,dropout,batch_norm,lr,weight_decay,batch_size,epochs,patience,loss,huber_delta,log_target,scheduler,min_lr,grad_clip
+it05,it04 + Dropout 0.2,25062.1,8288.9,12617.7,12444.4,26416.7,52.2,15.6,256-128-64,gelu,0.2,True,0.001,0.0,64,300,60,mse,1.0,True,none,1e-05,1.0
+it08,it07 + pérdida Huber en vez de MSE,25960.8,9673.7,16277.7,9683.1,27726.1,69.0,18.1,256-128-64,gelu,0.2,True,0.001,0.0001,64,400,60,huber,1.0,True,cosine,1e-05,1.0
+it10,it08 con red más angosta (128-64),26811.2,9595.9,10077.5,16733.7,28497.7,105.8,13.7,128-64,gelu,0.2,True,0.001,0.0001,64,400,60,huber,1.0,True,cosine,1e-05,1.0
+it11,it08 + dropout más agresivo (0.35),26958.9,13659.5,17615.6,9343.2,30250.9,41.4,14.4,256-128-64,gelu,0.35,True,0.001,0.0001,64,400,60,huber,1.0,True,cosine,1e-05,1.0
+it13,it08 + weight decay más fuerte (1e-3),27356.6,10129.1,16476.7,10879.9,29194.6,73.6,18.7,256-128-64,gelu,0.2,True,0.001,0.001,64,400,60,huber,1.0,True,cosine,1e-05,1.0
+it07,it06 + scheduler coseno,27524.1,9726.0,13649.4,13874.7,29214.0,42.6,14.4,256-128-64,gelu,0.2,True,0.001,0.0001,64,400,60,mse,1.0,True,cosine,1e-05,1.0
+it15,it08 + batch más pequeño (32),28127.7,12780.4,16795.7,11332.0,30922.6,33.4,23.8,256-128-64,gelu,0.2,True,0.001,0.0001,32,400,60,huber,1.0,True,cosine,1e-05,1.0
+it09,it08 con red más ancha (512-256-128),28170.7,14590.6,13698.3,14472.4,31754.3,27.8,15.9,512-256-128,gelu,0.2,True,0.001,0.0001,64,400,60,huber,1.0,True,cosine,1e-05,1.0
+it04,it03 + BatchNorm,29415.8,10279.9,6750.9,22664.9,31182.9,79.8,18.4,256-128-64,gelu,0.0,True,0.001,0.0,64,300,60,mse,1.0,True,none,1e-05,1.0
+it14,it08 + lr más alto (3e-3),30011.5,17393.2,13420.9,16590.6,34724.1,24.0,12.0,256-128-64,gelu,0.2,True,0.003,0.0001,64,400,60,huber,1.0,True,cosine,1e-05,1.0
+it16,it08 SIN remover outliers (control del preprocesamiento),30745.2,14602.2,13545.5,17199.7,34068.8,67.2,17.8,256-128-64,gelu,0.2,True,0.001,0.0001,64,400,60,huber,1.0,True,cosine,1e-05,1.0
+it12,it08 + dropout más suave (0.1),31266.1,17082.5,9470.8,21795.3,35665.2,74.4,18.8,256-128-64,gelu,0.1,True,0.001,0.0001,64,400,60,huber,1.0,True,cosine,1e-05,1.0
+it06,it05 + weight decay 1e-4 (AdamW),31669.3,16657.1,12235.9,19433.4,35819.0,37.2,13.9,256-128-64,gelu,0.2,True,0.001,0.0001,64,300,60,mse,1.0,True,none,1e-05,1.0
+it03,it02 + red más profunda (256-128-64),35682.6,19394.1,5577.4,30105.1,40655.1,136.2,11.8,256-128-64,gelu,0.0,False,0.001,0.0,64,300,60,mse,1.0,True,none,1e-05,1.0
+it01,"Baseline: 1 capa oculta (64), sin regularización, target crudo",42718.1,10544.8,4835.3,37882.8,44024.1,226.6,5.8,64,gelu,0.0,False,0.001,0.0,64,300,60,mse,1.0,False,none,1e-05,1.0
+it02,it01 + target en log1p(SalePrice),58949.1,57348.7,3131.1,55818.0,82350.1,264.4,5.9,64,gelu,0.0,False,0.001,0.0,64,300,60,mse,1.0,True,none,1e-05,1.0
