@@ -1,0 +1,7 @@
+candidato,descripcion,cv_rmse_mean,std_entre_repeticiones,train_rmse_mean,gap,peor_repeticion,arquitectura,dropout,weight_decay,loss,epochs
+c2,"it08: BN + dropout 0.2 + wd 1e-4, Huber, coseno",27795.0,1923.3,13817.8,13977.3,30317.4,256-128-64,0.2,0.0001,huber,400
+c3,it11: como c2 pero dropout 0.35,28339.5,1813.8,15731.0,12608.5,30896.2,256-128-64,0.35,0.0001,huber,400
+c4,c2 con dropout intermedio 0.25 + wd 5e-4,28655.0,2960.1,13840.3,14814.7,32190.1,256-128-64,0.25,0.0005,huber,400
+c5,c2 con dropout 0.3 + wd 1e-3 (regularización fuerte),28748.1,2955.2,15587.3,13160.7,32862.7,256-128-64,0.3,0.001,huber,400
+c6,c4 con más paciencia y coseno largo (600 épocas),28862.4,1345.9,12572.2,16290.2,29910.9,256-128-64,0.25,0.0005,huber,600
+c1,"it05: BN + dropout 0.2, MSE, sin scheduler",29058.8,2306.9,11710.7,17348.1,32274.0,256-128-64,0.2,0.0,mse,300
