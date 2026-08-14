@@ -84,3 +84,16 @@ ORDINAL_MAPS = {
 # Numérica por tipo pero categórica por significado: el código de tipo de
 # vivienda no tiene orden (20 no es "menor" que 60).
 FORCE_CATEGORICAL = ["MSSubClass", "MoSold"]
+
+# --- Techo y piso de predicción --------------------------------------------
+# Una red puede extrapolar fuera del rango que vio: en las primeras corridas
+# llegó a predecir 802,302 cuando el precio máximo del entrenamiento es 745,000.
+# En RMSE ese error se paga al cuadrado. Acotar las predicciones al rango
+# plausible del entrenamiento (con margen) fue la decisión de mayor impacto
+# medida en src/02c_robustez.py: -6,171 USD de RMSE.
+# El cuantil se eligió por barrido con validación cruzada en src/02d_calibracion.py
+# (no a ojo): la curva tiene un máximo interior — 0.98 trunca casas legítimamente
+# caras y 0.999 deja pasar la extrapolación.
+CEIL_QUANTILE = 0.99    # percentil del precio de entrenamiento
+CEIL_MARGIN = 1.00      # sin margen adicional
+FLOOR_FACTOR = 0.50     # piso: mitad del precio mínimo visto
