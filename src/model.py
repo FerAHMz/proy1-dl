@@ -43,6 +43,15 @@ class HParams:
     min_lr: float = 1e-5
     grad_clip: float = 1.0
 
+    # Métrica con la que el early stopping elige el checkpoint.
+    #   "rmse"     -> RMSE en escala original (la métrica de la competencia)
+    #   "log_rmse" -> RMSE sobre log1p(precio)
+    # Se usa log_rmse por defecto: el RMSE en escala original lo dominan una o
+    # dos casas extremas por fold, así que como señal de selección es ruido y
+    # produce paradas prematuras. El RMSE que se REPORTA sigue siendo el de la
+    # escala original en ambos casos.
+    es_metric: str = "log_rmse"
+
     def to_row(self) -> dict:
         d = asdict(self)
         d["hidden"] = "-".join(map(str, self.hidden))
@@ -147,8 +156,8 @@ def train_model(
         return np.expm1(t) if hp.log_target else t
 
     n = len(Xtr)
-    history = {"epoch": [], "train_rmse": [], "val_rmse": [], "lr": []}
-    best = {"val": np.inf, "train": np.inf, "epoch": -1, "state": None}
+    history = {"epoch": [], "train_rmse": [], "val_rmse": [], "es_score": [], "lr": []}
+    best = {"score": np.inf, "val": np.inf, "train": np.inf, "epoch": -1, "state": None}
     bad_epochs = 0
 
     for epoch in range(hp.epochs):
@@ -172,16 +181,23 @@ def train_model(
         tr_rmse = rmse(y_train, tr_pred)
         va_rmse = rmse(y_val, va_pred)
 
+        # Señal de early stopping: estable (log) o directa (escala original).
+        if hp.es_metric == "log_rmse":
+            es_score = rmse(np.log1p(y_val), np.log1p(np.clip(va_pred, 0, None)))
+        else:
+            es_score = va_rmse
+
         history["epoch"].append(epoch)
         history["train_rmse"].append(tr_rmse)
         history["val_rmse"].append(va_rmse)
+        history["es_score"].append(es_score)
         history["lr"].append(optimizer.param_groups[0]["lr"])
 
         if scheduler is not None:
-            scheduler.step(va_rmse) if hp.scheduler == "plateau" else scheduler.step()
+            scheduler.step(es_score) if hp.scheduler == "plateau" else scheduler.step()
 
-        if va_rmse < best["val"] - 1e-6:
-            best.update(val=va_rmse, train=tr_rmse, epoch=epoch,
+        if es_score < best["score"] - 1e-9:
+            best.update(score=es_score, val=va_rmse, train=tr_rmse, epoch=epoch,
                         state={k: v.detach().clone()
                                for k, v in model.state_dict().items()})
             bad_epochs = 0

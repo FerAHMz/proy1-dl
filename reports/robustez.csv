@@ -1,0 +1,6 @@
+variante,descripcion,es_metric,remueve_outliers,techo,oof_rmse,oof_rmse_sin_top5,mae,log_rmse,train_rmse,mean_epoch,max_pred,std_oof_rmse
+v4,"ES por log-RMSE, remueve outliers, CON techo",log_rmse,True,True,28284.9,21798.7,15743.0,0.1,11309.7,68.7,538493.7,765.9
+v5,"ES por log-RMSE, CONSERVA outliers, CON techo",log_rmse,False,True,30530.7,22755.1,16542.5,0.1,12089.8,53.4,543498.5,1210.1
+v1,"Original: ES por RMSE, remueve outliers, sin techo",rmse,True,False,32855.6,22060.8,16454.4,0.1,12331.6,69.0,797544.7,3317.5
+v2,"ES por log-RMSE, remueve outliers, sin techo",log_rmse,True,False,34455.8,21505.0,16011.9,0.1,10961.5,70.2,865068.7,80.1
+v3,"ES por log-RMSE, CONSERVA outliers, sin techo",log_rmse,False,False,34855.0,22088.4,16535.7,0.1,11281.8,65.1,802302.2,1307.8
