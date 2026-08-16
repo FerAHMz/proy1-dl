@@ -1,29 +1,29 @@
-"""Etapa 2c: corrección de las tres decisiones que el diagnóstico puso en duda.
+"""Etapa 2c: arreglo tres cosas que el diagnóstico me dejó en duda.
 
-Contexto. El primer entrenamiento final dio un RMSE de holdout de 39,679 contra
-30,205 de validación cruzada. Al abrir los residuos, UN solo caso (Id 524: casa
-de calidad 10 y 4,676 sq ft vendida sin terminar a 184,750) aportaba el 82% del
-error cuadrático total. Sin él, el RMSE del holdout bajaba a 17,080.
+Mi primer entrenamiento final dio 39,679 de RMSE en holdout contra 30,205 de
+validación cruzada. Al revisar los residuos vi que un solo caso (el Id 524:
+casa de calidad 10 y 4,676 sq ft vendida sin terminar a 184,750) se llevaba el
+82% del error cuadrático. Sin él el holdout bajaba a 17,080.
 
-Eso destapó tres decisiones mal tomadas:
+Revisando por qué, encontré tres cosas que había hecho mal:
 
-  A. El early stopping seleccionaba el checkpoint por RMSE en escala original.
-     Esa métrica la dominan una o dos casas extremas por fold, así que como
-     señal de selección es ruido: hubo miembros que se detuvieron en la época 2.
-     -> Se compara contra seleccionar por RMSE en escala logarítmica.
+  A. El early stopping elegía el checkpoint por RMSE en dólares. Esa métrica la
+     mandan una o dos casas extremas por fold, así que como señal para elegir
+     era ruido: tuve miembros que se detuvieron en la época 2.
+     -> Lo comparo contra elegir por RMSE en escala logarítmica.
 
-  B. Se removían los 2 outliers de venta parcial del entrenamiento. El efecto
-     colateral es que el modelo nunca aprende que `SaleCondition=Partial` con
-     casa grande se vende por debajo de su valor — información que SÍ está en
-     las columnas. Por eso predijo 638,804 para el Id 524.
-     -> Se compara removerlos contra conservarlos.
+  B. Quitaba los 2 outliers de venta parcial del entrenamiento. Lo malo es que
+     así la red nunca ve que una casa grande con SaleCondition=Partial se vende
+     barata, y esa columna sí está en los datos. Por eso me predijo 638,804
+     para el Id 524.
+     -> Comparo quitarlos contra dejarlos.
 
-  C. No había techo de predicción. Predecir 638,804 cuando solo 19 de 992 casas
-     superan los 400,000 es extrapolación agresiva, y en RMSE se paga al
+  C. No tenía techo de predicción. Predecir 638,804 cuando apenas 19 de 992
+     casas pasan de 400,000 es irse muy lejos, y en RMSE eso se paga al
      cuadrado.
-     -> Se compara sin techo contra un techo aprendido del entrenamiento.
+     -> Comparo sin techo contra un techo sacado del entrenamiento.
 
-Cada combinación se evalúa con CV repetida (3 semillas x 5 folds).
+Cada combinación la evalúo con CV repetida (3 semillas x 5 folds).
 
 Uso:  python src/02c_robustez.py
 """
@@ -59,9 +59,9 @@ VARIANTS = [
     ("v5", "ES por log-RMSE, CONSERVA outliers, CON techo", "log_rmse", False, True),
 ]
 
-# Techo: percentil 99.5 del precio de entrenamiento, con 10% de margen para no
-# truncar casas legítimamente caras. Se aprende del train de cada fold, nunca
-# del conjunto de validación.
+# Techo: percentil 99.5 del precio de entrenamiento con 10% de margen, para no
+# recortar casas que sí valen eso. Lo saco del train de cada fold, nunca de
+# validación.
 CEIL_QUANTILE = 0.995
 CEIL_MARGIN = 1.10
 
@@ -102,8 +102,8 @@ def evaluate(df_dev, es_metric, remove_out, use_ceiling, seed) -> dict:
     worst = np.argsort(np.abs(residual))[-5:]
     return {
         "oof_rmse": rmse(y_all, oof),
-        # RMSE recortado: cuánto del error viene del grueso de los datos y no de
-        # los pocos casos extremos.
+        # RMSE sin los 5 peores, para ver cuánto del error es del grueso de los
+        # datos y cuánto de un par de casos raros.
         "oof_rmse_sin_top5": rmse(np.delete(y_all, worst), np.delete(oof, worst)),
         "mae": float(np.mean(np.abs(residual))),
         "log_rmse": rmse(np.log1p(y_all), np.log1p(np.clip(oof, 0, None))),

@@ -1,7 +1,8 @@
-"""Predicción sobre un dataset nuevo — script del día de la presentación.
+"""Predicción sobre un dataset nuevo. Este es el script que corro el día de la
+presentación.
 
-Carga los artefactos entrenados, aplica EXACTAMENTE el mismo preprocesamiento
-del entrenamiento y escribe un CSV con el formato de expected_output.csv:
+Carga lo que entrené, aplica el mismo preprocesamiento y escribe un CSV con el
+formato de expected_output.csv:
 
     Id,Prediction
     893,178432.51
@@ -34,7 +35,7 @@ _CACHE: dict = {}
 
 
 def load_artifacts() -> dict:
-    """Carga modelo y preprocesadores una sola vez por proceso."""
+    """Carga el modelo y los preprocesadores una sola vez por corrida."""
     if "bundle" in _CACHE:
         return _CACHE["bundle"]
 
@@ -61,12 +62,11 @@ def load_artifacts() -> dict:
 
 
 def predict_dataframe(df: pd.DataFrame) -> np.ndarray:
-    """Predice precios para un DataFrame ya cargado con utils.load_csv.
+    """Predice precios para un DataFrame que ya cargué con utils.load_csv.
 
-    Promedia las predicciones de todos los miembros del ensemble. Cada miembro
-    transforma los datos con SU propio preprocesador (el que vio al entrenar),
-    lo que garantiza que las medias, medianas y categorías sean idénticas a las
-    del entrenamiento.
+    Promedia lo que dicen todos los miembros del ensemble. Cada uno transforma
+    los datos con su propio preprocesador, el mismo que usó al entrenar, así que
+    las medias, medianas y categorías no me pueden salir distintas.
     """
     bundle = load_artifacts()
     X_raw = df.drop(columns=[c for c in (ID_COL, TARGET) if c in df.columns])
@@ -75,14 +75,14 @@ def predict_dataframe(df: pd.DataFrame) -> np.ndarray:
     for (net, pre), smearing in zip(bundle["loaded_models"], bundle["smearing"]):
         preds.append(_predict_one(net, pre.transform(X_raw)) * smearing)
 
-    # Media geométrica: el modelo se entrenó en escala logarítmica, así que
-    # promediar en esa escala es lo consistente con la función de pérdida.
+    # Promedio en escala logarítmica porque es donde entrené: mezclar en
+    # dólares no sería consistente con la pérdida que optimicé.
     log_preds = np.log(np.clip(np.array(preds), 1.0, None))
     out = np.exp(log_preds.mean(axis=0))
 
-    # Acotar al rango de precios plausible aprendido del entrenamiento. Una red
-    # puede extrapolar muy lejos ante una casa atípica, y en RMSE ese error se
-    # paga al cuadrado. El rango es exactamente el mismo que se usó al entrenar.
+    # Recorto al rango de precios que aprendí del entrenamiento. Ante una casa
+    # rara la red se va muy lejos, y en RMSE eso se paga al cuadrado. Es el
+    # mismo rango que usé al entrenar.
     floor = bundle.get("price_floor", 1000.0)
     ceiling = bundle.get("price_ceiling", np.inf)
     return np.clip(out, floor, ceiling)

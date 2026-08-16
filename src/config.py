@@ -1,7 +1,7 @@
 """Rutas, semillas y contratos de columnas del proyecto.
 
-Todo el resto del pipeline importa de aquí: ningún script debe tener rutas
-ni listas de columnas hardcodeadas.
+Todo lo importo desde aquí para no repetir rutas ni listas de columnas
+regadas por los scripts.
 """
 
 from pathlib import Path
@@ -34,22 +34,22 @@ ID_COL = "Id"
 TARGET = "SalePrice"
 PRED_COL = "Prediction"
 
-# Categóricas cuyo NaN significa "la casa no tiene ese elemento", no "dato
-# faltante". Se imputan con el literal "None" antes de codificar.
+# Estas categóricas tienen NaN cuando la casa no tiene ese elemento, no cuando
+# falta el dato. Las lleno con el literal "None" antes de codificar.
 NA_MEANS_NONE = [
     "Alley", "BsmtQual", "BsmtCond", "BsmtExposure", "BsmtFinType1",
     "BsmtFinType2", "FireplaceQu", "GarageType", "GarageFinish", "GarageQual",
     "GarageCond", "PoolQC", "Fence", "MiscFeature", "MasVnrType",
 ]
 
-# Numéricas cuyo NaN significa "no tiene" -> 0.
+# Lo mismo pero numérico: si no tiene el elemento, la superficie es 0.
 NA_MEANS_ZERO = [
     "MasVnrArea", "BsmtFinSF1", "BsmtFinSF2", "BsmtUnfSF", "TotalBsmtSF",
     "BsmtFullBath", "BsmtHalfBath", "GarageCars", "GarageArea",
 ]
 
-# Variables ordinales: categorías con orden natural. Mapear a enteros preserva
-# la relación monótona con el precio y usa 1 columna en vez de k dummies.
+# Ordinales. Las mapeo a enteros porque el orden se traduce directo al precio,
+# y así gasto 1 columna en vez de k dummies.
 QUALITY_MAP = {"None": 0, "Po": 1, "Fa": 2, "TA": 3, "Gd": 4, "Ex": 5}
 
 ORDINAL_MAPS = {
@@ -81,19 +81,17 @@ ORDINAL_MAPS = {
     "Fence": {"None": 0, "MnWw": 1, "GdWo": 2, "MnPrv": 3, "GdPrv": 4},
 }
 
-# Numérica por tipo pero categórica por significado: el código de tipo de
-# vivienda no tiene orden (20 no es "menor" que 60).
+# Vienen como número pero son códigos: el 20 no es "menor" que el 60.
 FORCE_CATEGORICAL = ["MSSubClass", "MoSold"]
 
 # --- Techo y piso de predicción --------------------------------------------
-# Una red puede extrapolar fuera del rango que vio: en las primeras corridas
-# llegó a predecir 802,302 cuando el precio máximo del entrenamiento es 745,000.
-# En RMSE ese error se paga al cuadrado. Acotar las predicciones al rango
-# plausible del entrenamiento (con margen) fue la decisión de mayor impacto
-# medida en src/02c_robustez.py: -6,171 USD de RMSE.
-# El cuantil se eligió por barrido con validación cruzada en src/02d_calibracion.py
-# (no a ojo): la curva tiene un máximo interior — 0.98 trunca casas legítimamente
-# caras y 0.999 deja pasar la extrapolación.
+# En las primeras corridas la red me predijo hasta 802,302 cuando el máximo del
+# entrenamiento es 745,000, y en RMSE ese error se paga al cuadrado. Acotar el
+# rango terminó siendo lo que más bajó el error de todo el proyecto (-6,171 USD,
+# ver 02c_robustez.py).
+# El cuantil no lo puse a ojo: lo barrí con validación cruzada en
+# 02d_calibracion.py y la curva tiene un mínimo interior claro — con 0.98 ya
+# recorto casas que de verdad valen eso, y con 0.999 se me vuelve a escapar.
 CEIL_QUANTILE = 0.99    # percentil del precio de entrenamiento
 CEIL_MARGIN = 1.00      # sin margen adicional
 FLOOR_FACTOR = 0.50     # piso: mitad del precio mínimo visto

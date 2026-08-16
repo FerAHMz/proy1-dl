@@ -1,15 +1,14 @@
-"""Etapa 3: entrenamiento del modelo final y serialización de los artefactos.
+"""Etapa 3: entreno el modelo final y guardo todo lo necesario para predecir.
 
-El modelo final es un ENSEMBLE de K MLPs, uno por fold de la validación
-cruzada. Promediar sus predicciones reduce la varianza que introduce la
-inicialización aleatoria y el split concreto, sin agregar capacidad de
-memorización: cada miembro vio solo el 80% de los datos y se detuvo por early
-stopping en su propio fold de validación.
+El modelo final no es una red sino un ensemble: uno por fold de la validación
+cruzada. Promediarlos me quita la varianza que meten la inicialización y el
+split, sin que la cosa memorice más: cada miembro vio solo el 80% de los datos
+y se detuvo por early stopping en su propio fold.
 
-Guarda en models/:
-  - preprocessor.pkl  parámetros exactos del preprocesamiento (medianas,
-                      categorías, medias/std de normalización)
-  - mlp.pt            pesos de cada miembro + arquitectura + hiperparámetros
+Deja en models/:
+  - preprocessor.pkl  los números del preprocesamiento (medianas, categorías,
+                      medias y desviaciones)
+  - mlp.pt            pesos de cada miembro, arquitectura e hiperparámetros
 
 Uso:  python src/03_train_final.py
 """
@@ -44,13 +43,13 @@ from preprocessing import Preprocessor
 from utils import load_csv, rmse, set_seed, split_features_target
 from config import TRAIN_CSV
 
-# Configuración final. Se deja explícita (y no leída de los CSV) para que el
-# entrenamiento sea reproducible aunque se vuelvan a correr los experimentos.
+# La configuración final la dejo escrita acá en vez de leerla de los CSV, para
+# que el entrenamiento salga igual aunque vuelva a correr los experimentos.
 #
-# Procedencia de cada decisión:
-#   - arquitectura y regularización -> candidato c2 de src/02b_refinamiento.py
-#   - es_metric="log_rmse"          -> variante v4 de src/02c_robustez.py
-#   - techo de predicción           -> variante v4 de src/02c_robustez.py
+# De dónde salió cada cosa:
+#   - arquitectura y regularización -> candidato c2 de 02b_refinamiento.py
+#   - es_metric="log_rmse"          -> variante v4 de 02c_robustez.py
+#   - techo de predicción           -> variante v4 de 02c_robustez.py
 BEST_HP = HParams(
     hidden=(256, 128, 64),
     activation="gelu",
@@ -67,13 +66,14 @@ BEST_HP = HParams(
     es_metric="log_rmse",
 )
 
-# Semillas distintas por miembro: diversifica el ensemble más allá del split.
+# Le doy una semilla distinta a cada miembro para que el ensemble varíe por
+# algo más que el split.
 ENSEMBLE_SEEDS = [SEED, SEED + 1, SEED + 2]
 
 
 def load_best_hp_note() -> str:
-    """Procedencia de la configuración, para que el log del entrenamiento diga
-    de dónde salió cada decisión."""
+    """Para que el log del entrenamiento me recuerde de dónde salió cada
+    decisión."""
     partes = []
     for archivo, col_id, col_rmse, etapa in [
         (REPORTS / "refinamiento.csv", "candidato", "cv_rmse_mean", "arquitectura"),
@@ -99,8 +99,8 @@ def main() -> None:
     kf = KFold(n_splits=N_FOLDS, shuffle=True, random_state=SEED)
     bins = stratify_bins(y_dev)
 
-    # Rango plausible de precios, aprendido SOLO del bloque de desarrollo.
-    # Acota la extrapolación de la red fuera de lo que vio en entrenamiento.
+    # El rango de precios que considero posible, sacado solo de desarrollo.
+    # Es lo que evita que la red se vaya lejos de lo que vio entrenando.
     ceiling = float(np.quantile(y_dev, CEIL_QUANTILE)) * CEIL_MARGIN
     floor = float(y_dev.min()) * FLOOR_FACTOR
     print(f"Rango de predicción permitido: {floor:,.0f} – {ceiling:,.0f} USD\n")
@@ -127,9 +127,9 @@ def main() -> None:
             if s == ENSEMBLE_SEEDS[0]:
                 histories.append(res.history)
 
-            # Factor de smearing (Duan): corrige que expm1 estime la mediana y
-            # no la media condicional. Se calcula con los residuos de
-            # ENTRENAMIENTO del miembro, nunca con los de validación.
+            # Smearing (Duan): compensa que expm1 me da la mediana y no la
+            # media. Lo calculo con los residuos de entrenamiento del miembro,
+            # nunca con los de validación.
             pred_tr = predict(res.model, Xtr)
             resid_log = np.log1p(ytr) - np.log1p(np.clip(pred_tr, 0, None))
             smearing = float(np.mean(np.exp(resid_log)))
@@ -165,9 +165,9 @@ def main() -> None:
     print(f"RMSE val promedio por miembro: {mean_val:,.0f}")
     print(f"RMSE train promedio: {mean_train:,.0f}  ->  gap {mean_val - mean_train:,.0f}")
 
-    # --- Preprocesador final: se reajusta con TODO el bloque de desarrollo ---
-    # Los miembros usan cada uno el preprocesador de su fold (el que vieron al
-    # entrenar), así que este solo se guarda como referencia del pipeline.
+    # --- Preprocesador final, reajustado con todo el bloque de desarrollo ---
+    # Cada miembro usa el preprocesador de su propio fold, así que este lo dejo
+    # nada más como referencia del pipeline.
     X_dev_raw, _, _ = split_features_target(drop_outliers(df_dev))
     pre_full = Preprocessor().fit(X_dev_raw)
 
@@ -189,8 +189,8 @@ def main() -> None:
     print(f"\nModelo  -> {MODEL_PT}  ({len(members)} miembros)")
     print(f"Preproc -> {PREPROCESSOR_PKL}")
 
-    # --- Evaluación final en el holdout intacto ----------------------------
-    # Primera y única vez que se toca. No se ajusta nada después de esto.
+    # --- Evaluación en el holdout ------------------------------------------
+    # Primera y única vez que lo toco. Después de esto ya no ajusto nada.
     from predict import predict_dataframe
 
     y_hold = df_hold[TARGET].to_numpy(dtype=float)
@@ -221,8 +221,8 @@ def main() -> None:
 def plot_final_curves(histories: list[dict]) -> None:
     """Curvas de entrenamiento del modelo final, un panel por fold.
 
-    Es el diagnóstico visual de over/underfitting que pide la sección 2.3: se
-    marca la época donde el early stopping se quedó con los pesos.
+    Es la gráfica de over/underfitting que va en la sección 2.3. Marco la época
+    donde el early stopping se quedó con los pesos.
     """
     import matplotlib
 

@@ -1,8 +1,8 @@
-"""Pipeline de preprocesamiento: se ajusta UNA vez con train y se reaplica
-idéntico al dataset de prueba (requisito 2 de las recomendaciones del PDF).
+"""Preprocesamiento. Lo ajusto una vez con train y lo vuelvo a aplicar igual
+al dataset de prueba, que es lo que pide el enunciado.
 
-Se serializa completo en ``models/preprocessor.pkl``, así que el día de la
-presentación no hay que recalcular ni medias ni categorías: se cargan.
+Lo guardo completo en ``models/preprocessor.pkl`` para que el día de la
+presentación no tenga que recalcular medias ni categorías: solo lo cargo.
 """
 
 from __future__ import annotations
@@ -21,13 +21,14 @@ from config import (
 
 
 def add_engineered_features(X: pd.DataFrame) -> pd.DataFrame:
-    """Features derivadas. Todas son combinaciones deterministas de columnas
-    existentes, así que no filtran información del target ni dependen del split.
+    """Features que armé combinando columnas que ya existen. Como son puras
+    operaciones entre ellas, no se me cuela información del target ni dependen
+    de cómo parta los datos.
     """
     X = X.copy()
 
-    # Superficie total habitable: el MLP puede aprenderla, pero dársela explícita
-    # acelera la convergencia y es la variable más correlacionada con el precio.
+    # La red podría deducir la superficie total sola, pero dándosela directa
+    # converge más rápido, y resultó ser lo que más correlaciona con el precio.
     X["TotalSF"] = (
         X["TotalBsmtSF"].fillna(0) + X["1stFlrSF"].fillna(0) + X["2ndFlrSF"].fillna(0)
     )
@@ -45,22 +46,22 @@ def add_engineered_features(X: pd.DataFrame) -> pd.DataFrame:
         + X["WoodDeckSF"].fillna(0)
     )
 
-    # Edad al momento de la venta y años desde la remodelación: más informativas
-    # que los años absolutos, que el modelo tendría que restar por su cuenta.
+    # Prefiero la edad al momento de la venta que los años absolutos: si no,
+    # la red tiene que hacer la resta por su cuenta.
     X["HouseAge"] = X["YrSold"] - X["YearBuilt"]
     X["RemodAge"] = X["YrSold"] - X["YearRemodAdd"]
     X["IsRemodeled"] = (X["YearRemodAdd"] != X["YearBuilt"]).astype(int)
     X["IsNew"] = (X["YrSold"] == X["YearBuilt"]).astype(int)
 
-    # Indicadores de presencia: separan el "no tiene" del "tiene poco".
+    # Banderas de "tiene o no tiene", para no confundirlo con "tiene poco".
     X["HasPool"] = (X["PoolArea"].fillna(0) > 0).astype(int)
     X["HasGarage"] = (X["GarageArea"].fillna(0) > 0).astype(int)
     X["HasBsmt"] = (X["TotalBsmtSF"].fillna(0) > 0).astype(int)
     X["HasFireplace"] = (X["Fireplaces"].fillna(0) > 0).astype(int)
     X["Has2ndFloor"] = (X["2ndFlrSF"].fillna(0) > 0).astype(int)
 
-    # Interacciones calidad x superficie: el precio no escala igual por m2 en una
-    # casa de calidad 3 que en una de calidad 9.
+    # Calidad por superficie: el metro cuadrado no vale lo mismo en una casa de
+    # calidad 3 que en una de calidad 9.
     X["QualxSF"] = X["OverallQual"] * X["TotalSF"]
     X["QualxGrLiv"] = X["OverallQual"] * X["GrLivArea"]
     X["OverallScore"] = X["OverallQual"] * X["OverallCond"]
@@ -70,10 +71,10 @@ def add_engineered_features(X: pd.DataFrame) -> pd.DataFrame:
 
 @dataclass
 class Preprocessor:
-    """Ajusta con train, transforma cualquier split con los MISMOS parámetros.
+    """Aprende de train y transforma cualquier split con esos mismos números.
 
-    Parámetros aprendidos en ``fit`` y reutilizados tal cual en ``transform``:
-    medianas de imputación, categorías vistas, medias y desviaciones estándar.
+    Lo que saco en ``fit`` y reuso tal cual en ``transform``: medianas para
+    imputar, categorías vistas, medias y desviaciones para estandarizar.
     """
 
     skew_threshold: float = 0.75
@@ -97,7 +98,8 @@ class Preprocessor:
             if col in X.columns:
                 X[col] = X[col].astype("Int64").astype(str)
 
-        # NaN con significado semántico -> "None" / 0, no imputación estadística.
+        # Estos NaN significan "no tiene", así que van a "None" o 0 en vez de a la
+        # mediana.
         for col in NA_MEANS_NONE:
             if col in X.columns:
                 X[col] = X[col].fillna("None")
@@ -105,28 +107,28 @@ class Preprocessor:
             if col in X.columns:
                 X[col] = pd.to_numeric(X[col], errors="coerce").fillna(0)
 
-        # GarageYrBlt sin garaje: usar el año de construcción de la casa evita
-        # inventar un año 0 que distorsiona la escala.
+        # Si no hay garaje uso el año de la casa; poner 0 me rompía la escala.
         if "GarageYrBlt" in X.columns:
             X["GarageYrBlt"] = pd.to_numeric(
                 X["GarageYrBlt"], errors="coerce"
             ).fillna(X["YearBuilt"])
 
-        # Ordinales -> enteros con su orden natural.
+        # Ordinales a enteros, respetando su orden.
         for col, mapping in ORDINAL_MAPS.items():
             if col in X.columns:
                 X[col] = (
                     X[col].fillna("None").map(mapping).astype(float)
                 )
-                # Categoría no vista en el mapa -> mediana del mapa (valor neutro).
+                # Si aparece algo que no está en el mapa, le pongo el valor de
+                # en medio para no sesgarlo hacia ningún extremo.
                 X[col] = X[col].fillna(float(np.median(list(mapping.values()))))
 
         return X
 
     def _impute_lotfrontage(self, X: pd.DataFrame) -> pd.DataFrame:
-        """LotFrontage es el nulo más frecuente (~18%). El frente del lote está
-        determinado por el vecindario, así que se imputa con la mediana del
-        vecindario aprendida en train (no del split actual)."""
+        """LotFrontage es el nulo que más aparece (~18%). Como el frente del
+        lote depende de la traza del vecindario, lo lleno con la mediana de su
+        vecindario, calculada en train y no en el split que esté procesando."""
         X = X.copy()
         if "LotFrontage" not in X.columns:
             return X
@@ -160,15 +162,16 @@ class Preprocessor:
             for c in self.numeric_cols_
         }
 
-        # Categorías vistas en train: en transform, cualquier valor nuevo cae en
-        # "__other__" en vez de crear una columna que el modelo nunca vio.
+        # Me guardo las categorías que vi en train. Si en el test aparece una
+        # nueva, su fila queda en ceros en vez de abrir una columna que la red
+        # nunca vio.
         self.categories_ = {
             c: sorted(X[c].fillna("None").astype(str).unique().tolist())
             for c in self.categorical_cols_
         }
 
-        # log1p sobre las numéricas muy sesgadas: comprime colas largas
-        # (LotArea, superficies) y estabiliza el entrenamiento.
+        # log1p a las numéricas muy sesgadas: aplasta las colas largas de
+        # LotArea y las superficies, y el entrenamiento va más estable.
         num = X[self.numeric_cols_].apply(pd.to_numeric, errors="coerce")
         skews = num.fillna(pd.Series(self.medians_)).skew()
         self.skewed_cols_ = [
@@ -183,7 +186,7 @@ class Preprocessor:
         return self
 
     def _to_matrix(self, X: pd.DataFrame) -> np.ndarray:
-        """Construye la matriz de diseño en un orden de columnas fijo."""
+        """Arma la matriz final siempre con las columnas en el mismo orden."""
         parts, names = [], []
 
         num = X[self.numeric_cols_].apply(pd.to_numeric, errors="coerce")
@@ -196,7 +199,8 @@ class Preprocessor:
         for c in self.categorical_cols_:
             cats = self.categories_[c]
             vals = X[c].fillna("None").astype(str)
-            # One-hot manual: garantiza mismas columnas y mismo orden que en fit.
+            # Hago el one-hot a mano para que salgan las mismas columnas y en
+            # el mismo orden que en fit.
             block = np.zeros((len(X), len(cats)), dtype=float)
             idx = pd.Series(vals).map({k: i for i, k in enumerate(cats)})
             known = idx.notna().to_numpy()
@@ -212,7 +216,7 @@ class Preprocessor:
         X = self._impute_lotfrontage(X)
         X = add_engineered_features(X)
 
-        # Asegurar que existan todas las columnas que vio fit, en su orden.
+        # Relleno las columnas que fit vio y aquí puedan faltar.
         for c in self.numeric_cols_:
             if c not in X.columns:
                 X[c] = self.medians_[c]

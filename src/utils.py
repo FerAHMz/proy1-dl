@@ -1,4 +1,4 @@
-"""Funciones compartidas: semillas, métricas y carga robusta de CSVs."""
+"""Cosas que uso en varios scripts: semillas, RMSE y la carga de los CSVs."""
 
 from __future__ import annotations
 
@@ -11,8 +11,7 @@ from config import ID_COL, SEED, TARGET
 
 
 def set_seed(seed: int = SEED) -> None:
-    """Fija todas las semillas relevantes para que el entrenamiento sea
-    reproducible corrida a corrida."""
+    """Fijo todas las semillas para que dos corridas den lo mismo."""
     random.seed(seed)
     np.random.seed(seed)
     try:
@@ -25,26 +24,26 @@ def set_seed(seed: int = SEED) -> None:
 
 
 def rmse(y_true: np.ndarray, y_pred: np.ndarray) -> float:
-    """RMSE en la escala original de la variable (quetzales/dólares)."""
+    """RMSE en dólares, la escala original del precio."""
     y_true = np.asarray(y_true, dtype=float).ravel()
     y_pred = np.asarray(y_pred, dtype=float).ravel()
     return float(np.sqrt(np.mean((y_true - y_pred) ** 2)))
 
 
 def load_csv(path) -> pd.DataFrame:
-    """Carga un CSV del proyecto normalizando las diferencias de formato entre
-    ``train.csv`` y el archivo de prueba del profesor.
+    """Carga un CSV emparejando el formato de train.csv con el del archivo de
+    prueba.
 
-    Diferencias observadas en ``pipeline_test.csv`` que hay que absorber aquí:
+    Comparando ambos encontré tres diferencias que resuelvo aquí:
 
-    1. Valores categóricos envueltos en comillas simples (``'Wd Shng'``), que de
-       no limpiarse crearían una categoría distinta a la vista en entrenamiento.
-    2. Columnas numéricas que vienen como entero en el test y float en train.
-    3. Celdas vacías vs. literal ``NA``.
+    1. Categóricas con comillas simples (``'Wd Shng'``). Si no las limpio me
+       quedan como una categoría distinta a la que vi entrenando.
+    2. Columnas que en el test vienen enteras y en train float.
+    3. Celdas vacías contra el literal ``NA``.
     """
     df = pd.read_csv(path, keep_default_na=True, na_values=["", "NA", "N/A", "nan"])
 
-    # 1. Quitar comillas simples/dobles residuales y espacios en los strings.
+    # Quito comillas y espacios sobrantes de todos los strings.
     for col in df.select_dtypes(include="object").columns:
         df[col] = (
             df[col]
@@ -62,7 +61,7 @@ def load_csv(path) -> pd.DataFrame:
 
 
 def split_features_target(df: pd.DataFrame):
-    """Separa (X, y, ids). ``y`` es None cuando el CSV no trae SalePrice."""
+    """Separa (X, y, ids). Devuelve y=None si el CSV no trae SalePrice."""
     ids = df[ID_COL].to_numpy() if ID_COL in df.columns else np.arange(len(df))
     y = df[TARGET].to_numpy(dtype=float) if TARGET in df.columns else None
     X = df.drop(columns=[c for c in (ID_COL, TARGET) if c in df.columns])

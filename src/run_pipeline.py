@@ -1,11 +1,11 @@
-"""Orquestador: corre el pipeline completo de cero.
+"""Corre el pipeline completo de cero.
 
     python src/run_pipeline.py            # todo
     python src/run_pipeline.py --skip-exp # solo EDA y modelo final
 
-Las etapas de experimentación (02, 02b, 02c, 02d) son las más lentas (~25 min en
-total) y solo hace falta correrlas para reproducir las tablas del trabajo
-escrito. Para regenerar el modelo entrenado bastan la 01 y la 03.
+Las etapas de experimentación (02, 02b, 02c, 02d) son las lentas, como 25 min
+entre todas, y solo las necesito para regenerar las tablas del escrito. Si lo
+único que quiero es volver a entrenar el modelo, con la 01 y la 03 alcanza.
 """
 
 from __future__ import annotations
@@ -31,7 +31,7 @@ ETAPAS = [
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--skip-exp", action="store_true",
-                    help="omitir las etapas de experimentación")
+                    help="saltarse las etapas de experimentación")
     args = ap.parse_args()
 
     t0 = time.time()

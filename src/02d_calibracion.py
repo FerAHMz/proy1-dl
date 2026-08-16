@@ -1,25 +1,25 @@
-"""Etapa 2d: calibración de la predicción para la métrica de la competencia.
+"""Etapa 2d: calibro la predicción pensando en la métrica de la competencia.
 
-Dos ajustes que no cambian la red, solo cómo se convierte su salida a precio.
+Son dos ajustes que no tocan la red, solo cómo convierto su salida a precio.
 
-1) CORRECCIÓN DE SMEARING (Duan, 1983).
-   La red se entrena sobre log1p(precio), así que `expm1(pred)` estima la
-   MEDIANA condicional del precio. Pero el RMSE se minimiza con la MEDIA
-   condicional, y para una variable con cola derecha la media es mayor que la
-   mediana. Convertir con expm1 a secas subestima sistemáticamente.
+1) SMEARING (Duan, 1983).
+   Como entreno sobre log1p(precio), `expm1(pred)` me da la mediana condicional
+   y no la media. Pero el RMSE se minimiza con la media, y en una variable con
+   cola derecha la media queda arriba de la mediana, así que convertir con
+   expm1 a secas me subestima siempre.
 
-   El estimador de smearing corrige multiplicando por el promedio de los
+   El estimador de smearing lo corrige multiplicando por el promedio de los
    residuos exponenciados del entrenamiento:
 
        factor = mean(exp(residuo_log_entrenamiento))
        precio = expm1(pred_log) * factor
 
-   El factor se calcula SOLO con datos de entrenamiento de cada fold.
+   El factor lo calculo solo con los datos de entrenamiento de cada fold.
 
-2) BARRIDO DEL TECHO DE PREDICCIÓN.
-   El techo resultó ser la decisión de mayor impacto en src/02c_robustez.py.
-   Aquí se elige su cuantil por validación cruzada en lugar de fijarlo a ojo.
-   Se evalúa sobre el bloque de desarrollo; el holdout no participa.
+2) BARRIDO DEL TECHO.
+   El techo terminó siendo lo que más impacto tuvo en 02c_robustez.py, así que
+   acá elijo su cuantil con validación cruzada en vez de dejarlo puesto a ojo.
+   Todo sobre el bloque de desarrollo; el holdout no entra.
 
 Uso:  python src/02d_calibracion.py
 """
@@ -52,9 +52,9 @@ CEIL_GRID = [(0.98, 1.0), (0.99, 1.0), (0.995, 1.0), (0.995, 1.10),
 
 
 def collect_predictions(df_dev, seed):
-    """Corre la CV una sola vez y devuelve, por fold, las predicciones crudas y
-    el factor de smearing. Así el barrido de techo y smearing se evalúa sin
-    reentrenar la red para cada combinación."""
+    """Corro la CV una sola vez y me guardo las predicciones crudas y el factor
+    de smearing de cada fold. Así puedo barrer techo y smearing sin volver a
+    entrenar la red para cada combinación."""
     y_all = df_dev[TARGET].to_numpy(dtype=float)
     kf = KFold(n_splits=5, shuffle=True, random_state=seed)
 
@@ -77,7 +77,7 @@ def collect_predictions(df_dev, seed):
 
         res = train_model(Xtr, ytr, Xva, yva, HP)
 
-        # Factor de smearing con los residuos EN ENTRENAMIENTO (nunca en val).
+        # El factor sale de los residuos de entrenamiento, nunca de validación.
         pred_tr = predict(res.model, Xtr)
         resid_log = np.log1p(ytr) - np.log1p(np.clip(pred_tr, 0, None))
         smear[va_i] = float(np.mean(np.exp(resid_log)))
@@ -112,7 +112,7 @@ def main() -> None:
             for y_all, oof_raw, smear, train_min, ytr_store, kf in runs:
                 pred = oof_raw * smear if use_smear else oof_raw.copy()
 
-                # Techo por fold, calculado con el y de entrenamiento del fold.
+                # El techo de cada fold sale del y de entrenamiento de ese fold.
                 capped = pred.copy()
                 for (tr_i, va_i), ytr in zip(
                         kf.split(np.arange(len(y_all)), stratify_bins(y_all)),

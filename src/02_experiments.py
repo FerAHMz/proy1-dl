@@ -1,8 +1,9 @@
-"""Etapa 2: historial de iteraciones (sección 2.3 del trabajo escrito).
+"""Etapa 2: el historial de iteraciones (sección 2.3 del escrito).
 
-Cada iteración cambia UNA cosa respecto a una anterior, para poder atribuir la
-mejora a ese cambio y no a una combinación. Todas se evalúan con el mismo
-protocolo (5-fold CV sobre el bloque de desarrollo) y con la misma semilla.
+Cambio una sola cosa por iteración respecto a alguna anterior, para poder decir
+qué produjo la mejora en vez de quedarme con una combinación que funcionó por
+razones que no sé. Todas las corro con el mismo protocolo (5-fold sobre
+desarrollo) y la misma semilla.
 
 Salidas: reports/experiments.csv y reports/figures/07_curvas_*.png
 
@@ -27,7 +28,7 @@ from experiment import cross_validate, make_holdout
 from model import HParams
 from utils import load_csv, set_seed
 
-# (id, descripción del cambio respecto a la iteración previa, hiperparámetros)
+# (id, qué cambié respecto a la iteración anterior, hiperparámetros)
 EXPERIMENTS = [
     ("it01", "Baseline: 1 capa oculta (64), sin regularización, target crudo",
      HParams(hidden=(64,), dropout=0.0, batch_norm=False, log_target=False,
@@ -111,9 +112,9 @@ NO_OUTLIER_REMOVAL = {"it16"}
 
 
 def plot_curves(exp_id: str, desc: str, histories: list[dict]) -> None:
-    """Curva de RMSE vs. época del primer fold: sirve para diagnosticar
-    visualmente overfitting (val sube mientras train baja) o underfitting
-    (ambas se estancan alto)."""
+    """RMSE contra época del primer fold. Es la forma más rápida de ver si hay
+    overfitting (val sube mientras train baja) o underfitting (las dos se quedan
+    estancadas arriba)."""
     h = histories[0]
     fig, ax = plt.subplots(figsize=(7, 4.5))
     ax.plot(h["epoch"], h["train_rmse"], label="train", lw=1.6)

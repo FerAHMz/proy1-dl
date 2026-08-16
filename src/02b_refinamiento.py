@@ -1,13 +1,14 @@
-"""Etapa 2b: desempate entre las mejores configuraciones con CV repetida.
+"""Etapa 2b: desempato las mejores configuraciones con CV repetida.
 
-Motivo: en la primera ronda la desviación entre folds (~9,000–17,000 USD) resultó
-MAYOR que las diferencias entre las mejores configuraciones (~900 USD). Con una
-sola corrida de 5-fold no se puede distinguir cuál generaliza mejor: elegir el
-menor RMSE puntual sería elegir ruido del split.
+Al ver los resultados de la ronda 1 me di cuenta de que la desviación entre
+folds (~9,000–17,000 USD) era más grande que las diferencias entre las mejores
+configuraciones (~900 USD). O sea que con una sola corrida de 5-fold no puedo
+saber cuál generaliza mejor: quedarme con el menor RMSE sería quedarme con el
+ruido del split.
 
-Solución: repetir la validación cruzada con varias semillas (3 x 5 folds = 15
-estimaciones por configuración) y comparar por la media de esas repeticiones y
-por el gap train/val, no por un número suelto.
+Así que repito la validación cruzada con tres semillas (15 estimaciones por
+configuración) y comparo por el promedio de esas repeticiones y por el gap
+train/val, no por un número suelto.
 
 Uso:  python src/02b_refinamiento.py
 """
@@ -29,9 +30,9 @@ from utils import load_csv, set_seed
 
 REPEAT_SEEDS = [42, 7, 2024]
 
-# Candidatos: las mejores de la ronda 1 más variantes de regularización en torno
-# a ellas. Todas comparten arquitectura, porque la ronda 1 mostró que ni
-# ensanchar ni angostar la red aporta; lo que decide es la regularización.
+# Me quedo con las mejores de la ronda 1 y agrego variantes de regularización
+# alrededor. Todas con la misma arquitectura, porque en la ronda 1 vi que ni
+# ensanchar ni angostar la red cambia nada: lo que decide es la regularización.
 CANDIDATES = [
     ("c1", "it05: BN + dropout 0.2, MSE, sin scheduler",
      HParams(hidden=(256, 128, 64), dropout=0.2, batch_norm=True, log_target=True,
@@ -78,8 +79,8 @@ def main() -> None:
             gaps.append(r["gap"])
 
         mean_val = float(np.mean(vals))
-        # Desviación ENTRE repeticiones: mide qué tan reproducible es el
-        # resultado, no la dispersión interna de los folds.
+        # Esta desviación es entre repeticiones, no entre folds: me dice qué
+        # tan reproducible es el resultado si cambio la semilla.
         std_rep = float(np.std(vals))
         rows.append({
             "candidato": cid,

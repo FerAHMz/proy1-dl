@@ -1,7 +1,7 @@
-"""Etapa 1: análisis exploratorio de datos.
+"""Etapa 1: el análisis exploratorio.
 
-Genera las tablas y figuras que alimentan la sección 2.1 del trabajo escrito.
-Escribe en reports/figures/*.png y reports/eda_*.csv. No modifica data/raw.
+Saca las tablas y figuras que uso en la sección 2.1 del escrito. Escribe en
+reports/figures/*.png y reports/eda_*.csv, y no toca nada de data/raw.
 
 Uso:  python src/01_eda.py
 """
@@ -134,8 +134,9 @@ def main() -> None:
     plt.close(fig)
 
     # --- Outliers -----------------------------------------------------------
-    # Los casos documentados del dataset de Ames: casas enormes vendidas barato
-    # (ventas parciales). Se reportan aquí y la decisión se toma en 02_train.
+    # Los casos ya conocidos de Ames: casas enormes vendidas baratas porque
+    # fueron ventas parciales. Acá solo los reporto; qué hago con ellos lo
+    # decido más adelante.
     out = df[(df["GrLivArea"] > 4000) & (df[TARGET] < 300000)]
     print(f"\nOutliers GrLivArea>4000 & SalePrice<300k: {len(out)}")
     if len(out):
@@ -151,7 +152,7 @@ def main() -> None:
     fig.savefig(FIGURES / "06_outliers.png")
     plt.close(fig)
 
-    # IQR por variable numérica, como referencia cuantitativa.
+    # IQR por variable, para tener una referencia numérica y no solo la gráfica.
     q1, q3 = df[num_cols].quantile(0.25), df[num_cols].quantile(0.75)
     iqr = q3 - q1
     n_out = ((df[num_cols] < q1 - 1.5 * iqr) | (df[num_cols] > q3 + 1.5 * iqr)).sum()

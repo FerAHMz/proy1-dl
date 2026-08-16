@@ -1,7 +1,7 @@
-"""Definición del MLP y su bucle de entrenamiento.
+"""El MLP y su bucle de entrenamiento.
 
-El modelo es un Multi-Layer Perceptron puro (requisito del proyecto): capas
-totalmente conectadas + activación + normalización + dropout.
+Es un Multi-Layer Perceptron puro, como pide el proyecto: capas densas con
+activación, normalización y dropout.
 """
 
 from __future__ import annotations
@@ -24,8 +24,8 @@ ACTIVATIONS = {
 
 @dataclass
 class HParams:
-    """Todos los hiperparámetros de una iteración en un solo objeto, para poder
-    registrarlos junto con su RMSE en reports/experiments.csv."""
+    """Junto todos los hiperparámetros de una iteración acá para poder
+    guardarlos con su RMSE en reports/experiments.csv."""
 
     hidden: tuple[int, ...] = (256, 128, 64)
     activation: str = "gelu"
@@ -43,13 +43,13 @@ class HParams:
     min_lr: float = 1e-5
     grad_clip: float = 1.0
 
-    # Métrica con la que el early stopping elige el checkpoint.
-    #   "rmse"     -> RMSE en escala original (la métrica de la competencia)
+    # Con qué métrica el early stopping decide qué checkpoint guardar.
+    #   "rmse"     -> RMSE en dólares (la métrica de la competencia)
     #   "log_rmse" -> RMSE sobre log1p(precio)
-    # Se usa log_rmse por defecto: el RMSE en escala original lo dominan una o
-    # dos casas extremas por fold, así que como señal de selección es ruido y
-    # produce paradas prematuras. El RMSE que se REPORTA sigue siendo el de la
-    # escala original en ambos casos.
+    # Dejo log_rmse por defecto. Con el RMSE en dólares, una o dos casas caras
+    # por fold mandan sobre el resultado, así que como señal para elegir era
+    # puro ruido y me cortaba el entrenamiento demasiado pronto. En los dos
+    # casos el RMSE que reporto sigue siendo el de dólares.
     es_metric: str = "log_rmse"
 
     def to_row(self) -> dict:
@@ -59,7 +59,7 @@ class HParams:
 
 
 class MLP(nn.Module):
-    """MLP con bloques [Linear -> BatchNorm -> Activación -> Dropout]."""
+    """MLP armado con bloques [Linear -> BatchNorm -> Activación -> Dropout]."""
 
     def __init__(self, n_features: int, hp: HParams):
         super().__init__()
@@ -80,7 +80,7 @@ class MLP(nn.Module):
 
     @staticmethod
     def _init_weights(m: nn.Module) -> None:
-        # He/Kaiming: apropiado para activaciones tipo ReLU y sus variantes.
+        # Kaiming va bien con ReLU y sus parientes, que es lo que uso.
         if isinstance(m, nn.Linear):
             nn.init.kaiming_normal_(m.weight, nonlinearity="relu")
             nn.init.zeros_(m.bias)
@@ -100,8 +100,8 @@ class TrainResult:
 
 def _make_loss(hp: HParams) -> nn.Module:
     if hp.loss == "huber":
-        # Huber es menos sensible a los precios extremos que MSE, lo que evita
-        # que unas pocas casas de $700k dominen el gradiente.
+        # Huber aguanta mejor los precios extremos que MSE: así unas pocas
+        # casas de $700k no se llevan todo el gradiente.
         return nn.HuberLoss(delta=hp.huber_delta)
     return nn.MSELoss()
 
@@ -115,20 +115,20 @@ def train_model(
     device: str = "cpu",
     verbose: bool = False,
 ) -> TrainResult:
-    """Entrena un MLP y devuelve la mejor versión según RMSE de validación.
+    """Entrena un MLP y me devuelve la mejor versión según validación.
 
-    El RMSE reportado SIEMPRE está en la escala original de SalePrice, aunque el
-    entrenamiento ocurra en escala logarítmica: es la métrica de la competencia.
+    Aunque entrene en escala logarítmica, el RMSE que reporto siempre está en
+    dólares, que es la métrica con la que nos van a calificar.
     """
     dev = torch.device(device)
 
-    # Transformación del target. Si log_target, el modelo predice log1p(precio)
-    # y se invierte con expm1 antes de medir.
+    # Si log_target está activo la red predice log1p(precio) y lo devuelvo a
+    # dólares con expm1 antes de medir.
     t_train = np.log1p(y_train) if hp.log_target else y_train.copy()
     t_val = np.log1p(y_val) if hp.log_target else y_val.copy()
 
-    # Estandarizar el target estabiliza el entrenamiento cuando NO se usa log
-    # (los precios crudos tienen escala ~1e5 y saturarían la red).
+    # Estandarizo el target sobre todo para cuando NO uso log: los precios
+    # crudos andan en 1e5 y me saturaban la red.
     t_mean, t_std = float(t_train.mean()), float(t_train.std())
     t_train_s = (t_train - t_mean) / t_std
     t_val_s = (t_val - t_mean) / t_std
@@ -165,7 +165,7 @@ def train_model(
         perm = torch.randperm(n, device=dev)
         for i in range(0, n, hp.batch_size):
             idx = perm[i:i + hp.batch_size]
-            if len(idx) < 2:  # BatchNorm necesita >=2 muestras
+            if len(idx) < 2:  # con 1 sola muestra BatchNorm truena
                 continue
             optimizer.zero_grad()
             loss = criterion(model(Xtr[idx]), ytr[idx])
@@ -181,7 +181,7 @@ def train_model(
         tr_rmse = rmse(y_train, tr_pred)
         va_rmse = rmse(y_val, va_pred)
 
-        # Señal de early stopping: estable (log) o directa (escala original).
+        # La señal con la que decido si este checkpoint es el mejor.
         if hp.es_metric == "log_rmse":
             es_score = rmse(np.log1p(y_val), np.log1p(np.clip(va_pred, 0, None)))
         else:
@@ -214,8 +214,8 @@ def train_model(
     if best["state"] is not None:
         model.load_state_dict(best["state"])
     model.eval()
-    # Guardar los parámetros de la transformación del target dentro del modelo:
-    # sin ellos las predicciones no se pueden devolver a escala de precio.
+    # Pego al modelo los parámetros con los que transformé el target; sin ellos
+    # después no puedo devolver las predicciones a dólares.
     model.target_mean_ = t_mean
     model.target_std_ = t_std
     model.log_target_ = hp.log_target
@@ -227,7 +227,7 @@ def train_model(
 
 @torch.no_grad()
 def predict(model: MLP, X: np.ndarray, device: str = "cpu") -> np.ndarray:
-    """Predice precios en escala original, deshaciendo las transformaciones."""
+    """Predice en dólares, deshaciendo las transformaciones del target."""
     model.eval()
     dev = torch.device(device)
     out = model(torch.tensor(X, dtype=torch.float32, device=dev)).cpu().numpy()
