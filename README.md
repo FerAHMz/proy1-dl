@@ -5,7 +5,21 @@
 Multi-Layer Perceptron para predecir el precio de venta de viviendas (dataset Ames
 Housing). Métrica objetivo: **RMSE**.
 
-## Resultados
+## Resultado de la competencia (17 de agosto)
+
+RMSE del mejor envío en el dataset de prueba real (292 casas): **24,833 USD**,
+por encima del baseline de regresión lineal del curso (29,474).
+
+El modelo de competencia (`src/04_competencia.py`) es un ensemble de 40 MLPs:
+4 arquitecturas distintas (256-128-64 GELU, 512-256-128, 128-64 y 256-128-64
+SiLU) x 10 folds, entrenado con todo `train.csv`. Durante la ventana de envíos
+probé de forma sistemática: acotar/no acotar el rango de predicción (quitarlo
+mejoró 4,357), reentrenar con todos los datos, pseudo-labeling y target
+encoding de vecindario. Los últimos dos mejoraron la validación local pero no
+el test — evidencia de que el RMSE del test lo dominan unos pocos casos
+extremos, consistente con lo observado en el holdout.
+
+## Resultados del desarrollo (holdout propio)
 
 | Métrica | Valor |
 |---|---|
@@ -28,6 +42,7 @@ proy1-dl/
 ├── data/raw/                  datos originales (inmutables)
 │   ├── train.csv              1,168 filas x 81 columnas
 │   ├── pipeline_test.csv      muestra del formato del dataset de prueba
+│   ├── test_features.csv      dataset de prueba real (entregado el 17 de agosto)
 │   └── expected_output.csv    formato exigido para la entrega
 ├── notebooks/
 │   ├── 01_eda.ipynb                      análisis exploratorio
@@ -46,12 +61,14 @@ proy1-dl/
 │   ├── 02c_robustez.py        corrección de early stopping, outliers y techo
 │   ├── 02d_calibracion.py     calibración del techo y smearing
 │   ├── 03_train_final.py      entrena el modelo final y evalúa el holdout
+│   ├── 04_competencia.py      modelo de la competencia (ensemble diverso)
 │   ├── predict.py             predicción sobre un dataset nuevo
 │   └── run_pipeline.py        orquestador de todas las etapas
 ├── models/                    artefactos entrenados (mlp.pt, preprocessor.pkl)
 ├── reports/                   tablas de experimentos y métricas
 │   └── figures/               figuras generadas
 ├── codebook.md                descripción del dataset y sus variables
+├── submission_competencia.csv mejor envío de la competencia (RMSE 24,833)
 └── requirements.txt
 ```
 
@@ -192,6 +209,12 @@ dominada por una o dos casas extremas por fold: hubo miembros que se detuvieron 
 desviación entre folds (9,000–17,000 USD) era varias veces mayor que las diferencias
 entre las mejores configuraciones (1,000–2,000 USD), lo que obligó a usar validación
 cruzada repetida para decidir.
+
+**La competencia dejó dos lecciones más.** Quitar el techo de predicción mejoró
+4,357 USD en el test real — el techo estaba calibrado contra un holdout que contenía
+una venta parcial patológica que el test no tenía. Y tanto el pseudo-labeling como el
+target encoding mejoraron la validación local sin mover el test: cuando la métrica la
+dominan pocos casos extremos, la señal local deja de predecir el resultado.
 
 **Dos hipótesis resultaron falsas y quedaron documentadas:** conservar los outliers de
 venta parcial para que el modelo aprendiera el patrón (empeoró), y la corrección de
